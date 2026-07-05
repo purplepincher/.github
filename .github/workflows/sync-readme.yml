@@ -1,0 +1,43 @@
+name: Sync profile README
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch source README and latest commit SHA
+        run: |
+          set -euo pipefail
+          curl -sL -o README.source.md \
+            https://raw.githubusercontent.com/purplepincher/purplepincher/main/README.md
+          curl -sL -o source-sha.json \
+            https://api.github.com/repos/purplepincher/purplepincher/commits/main
+          jq -r '.sha' source-sha.json > source-sha.txt
+
+      - name: Sync profile/README.md if changed
+        run: |
+          set -euo pipefail
+          if diff -q README.source.md profile/README.md >/dev/null 2>&1; then
+            echo "profile/README.md is already up to date. Nothing to do."
+            exit 0
+          fi
+
+          cp README.source.md profile/README.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          short_sha=$(cut -c1-7 source-sha.txt)
+          git add profile/README.md
+          git commit -m "chore: sync profile README from purplepincher/purplepincher@${short_sha}"
+          git push
